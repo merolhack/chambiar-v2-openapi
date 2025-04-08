@@ -1,0 +1,730 @@
+openapi: 3.0.0
+info:
+  title: Chambiar Backend API
+  version: 0.0.1
+  description: API for job platform with AI and third-party integrations
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://chambiar-app.trembit.com
+    description: Production
+
+paths:
+  /:
+    get:
+      tags: [App]
+      summary: Health check
+      responses:
+        200:
+          description: Basic health check response
+          content:
+            text/plain:
+              schema: 
+                type: string
+                example: "Hello World"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDTO'
+      responses:
+        200:
+          description: Successful login
+          headers:
+            Set-Cookie:
+              schema: 
+                type: string
+                example: access_token=abc123; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    enum: [username not found, password does not match]
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: User registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupDTO'
+      responses:
+        200:
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+        400:
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: array
+                    items:
+                      type: string
+
+  /auth/google:
+    get:
+      tags: [Auth]
+      summary: Initiate Google OAuth flow
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        302:
+          description: Redirect to Google OAuth consent screen
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://accounts.google.com/o/oauth2/auth?client_id=...
+
+  /auth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Google OAuth callback handler
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        302:
+          description: Redirect to application with access token
+          headers:
+            Location:
+              schema:
+                type: string
+                example: https://chambiar-app.trembit.com/co-worker
+        500:
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /auth/check-status:
+    post:
+      tags: [Auth]
+      summary: Check integration statuses
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Integration statuses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationStatus'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /auth/update-status:
+    post:
+      tags: [Auth]
+      summary: Toggle integration status
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                integration:
+                  type: string
+                  enum: [google_documents, slack, google_calendar, gmail]
+                enabled:
+                  type: boolean
+              required: [integration, enabled]
+      responses:
+        200:
+          description: Updated integration status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationStatus'
+        400:
+          description: Invalid integration type
+        401:
+          description: Unauthorized
+        500:
+          description: Server error
+
+  /companies:
+    get:
+      tags: [Companies]
+      summary: Get all companies
+      responses:
+        200:
+          description: List of all companies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Company'
+
+  /companies/industry:
+    get:
+      tags: [Companies]
+      summary: Filter companies by industry (Not Implemented)
+      parameters:
+        - name: industry
+          in: query
+          schema:
+            type: string
+      responses:
+        501:
+          description: Not Implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Endpoint not implemented"
+
+  /companies/{companyId}/jobs:
+    get:
+      tags: [Companies]
+      summary: Get jobs for a specific company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: List of company jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Job'
+        404:
+          description: Company not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Company not found"
+
+  /ai/history/{conversationId}:
+    get:
+      tags: [AI]
+      summary: Get conversation history
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Conversation history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IMessage'
+        404:
+          description: Conversation not found
+
+    delete:
+      tags: [AI]
+      summary: Delete conversation history
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: History deleted successfully
+          content:
+            application/json:
+              schema:
+                type: boolean
+
+  /ai/message:
+    post:
+      tags: [AI]
+      summary: Send message to AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageDTO'
+      responses:
+        201:
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IMessage'
+        500:
+          description: AI processing error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /gmail/auth-url:
+    get:
+      tags:
+        - Gmail
+      summary: Get Google OAuth2 authentication URL
+      responses:
+        '200':
+          description: Returns the OAuth2 URL for Google authentication.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    description: Google OAuth2 authentication URL.
+  /gmail/callback:
+    get:
+      tags:
+        - Gmail
+      summary: Handle OAuth2 callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Authorization code returned by Google OAuth2.
+      responses:
+        '200':
+          description: Successfully authenticated and saved tokens.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '500':
+          description: Internal server error during authentication.
+  /gmail/send:
+    post:
+      tags:
+        - Gmail
+      summary: Send an email via Gmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                  example: "recipient@example.com"
+                subject:
+                  type: string
+                  example: "Meeting Reminder"
+                body:
+                  type: string
+                  example: "Please join the meeting at 3 PM."
+              required:
+                - to
+                - subject
+                - body
+      responses:
+        '200':
+          description: Email sent successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email successfully sent to recipient@example.com with subject: 'Meeting Reminder'"
+        '500':
+          description: Failed to send email.
+  /gmail/emails:
+    get:
+      tags:
+        - Gmail
+      summary: Retrieve emails from Gmail inbox
+      parameters:
+        - name: maxResults
+          in: query
+          schema:
+            type: integer
+            default: 500
+          description: Maximum number of emails to fetch.
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Fetch only unread emails.
+      responses:
+        '200':
+          description: List of emails retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: Email ID
+                    from:
+                      type: string
+                      description: Sender's email address
+                    subject:
+                      type: string
+                      description: Email subject
+                    snippet:
+                      type: string
+                      description: Email content snippet
+        '404':
+          description: No emails found.
+  /gmail/emails/search:
+    get:
+      tags:
+        - Gmail
+      summary: Search emails by subject
+      parameters:
+        - name: subject
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Subject or keywords to search for.
+      responses:
+        '200':
+          description: List of matching emails.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    from:
+                      type: string
+                    subject:
+                      type: string
+                    snippet:
+                      type: string
+        '404':
+          description: No emails found with the specified subject.
+
+  /slack/events:
+    post:
+      tags: [Slack]
+      summary: Handle Slack events
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                challenge:
+                  type: string
+      responses:
+        200:
+          description: Event processed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /users/profile:
+    get:
+      tags: [Users]
+      summary: Get user profile
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: User profile data
+
+  /docs/list/{userId}:
+    get:
+      tags: [Google Docs]
+      summary: List user's Google Docs
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+
+  # Additional paths continue here...
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+
+  schemas:
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        shortName:
+          type: string
+          nullable: true
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+      required:
+        - id
+        - name
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+        # Add other job properties as needed
+      required:
+        - id
+        - title
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        createdTime:
+          type: string
+          format: date-time
+
+    LoginDTO:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    SignupDTO:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+        linkedIn:
+          type: string
+          format: uri
+        employStatus:
+          type: string
+          enum: [employed, active search, passive search]
+        position:
+          type: string
+        employer:
+          type: string
+        interests:
+          type: array
+          items:
+            type: string
+        wantInternships:
+          type: boolean
+        wantNewGrad:
+          type: boolean
+        wantFullTime:
+          type: boolean
+        wantPreProf:
+          type: boolean
+      required:
+        - username
+        - password
+        - firstName
+        - lastName
+        - email
+        - phoneNumber
+        - linkedIn
+        - employStatus
+        - interests
+        - wantInternships
+        - wantNewGrad
+        - wantFullTime
+        - wantPreProf
+
+    IMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        generated:
+          type: integer
+          format: int64
+          description: Unix timestamp
+      required: [role, content, generated]
+
+    MessageDTO:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        content:
+          type: string
+      required: [conversationId, content]
+
+    CreatePromptDto:
+      type: object
+      properties:
+        text:
+          type: string
+        isDefault:
+          type: boolean
+    IntegrationStatus:
+      type: object
+      properties:
+        google_documents:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+        slack:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+        google_calendar:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+        gmail:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+tags:
+  - name: App
+    description: Core application endpoints
+  - name: Auth
+    description: Authentication and authorization operations
+  - name: AI
+    description: AI conversation and processing endpoints
+  - name: Companies
+    description: Company information and job listings
+  - name: Gmail
+    description: Gmail integration
+  - name: Slack
+    description: Slack integration
+  - name: Users
+    description: User management
+  - name: Google Docs
+    description: Google Docs integration
