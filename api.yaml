@@ -2,7 +2,11 @@ openapi: 3.0.0
 info:
   title: Chambiar Backend API
   version: 0.0.1
-  description: API for job platform with AI and third-party integrations
+  description: |
+    API for job platform with AI and third-party integrations
+    ## WebSocket Support
+    - Connect via `ws://{host}/ws/slack-events` for real-time event updates
+    - Supported events: `slack_events` (initial state), `slack_event` (live updates)
 servers:
   - url: http://localhost:3000
     description: Local development
@@ -22,7 +26,99 @@ paths:
               schema: 
                 type: string
                 example: "Hello World"
-
+  /ai/analyze-call:
+    post:
+      tags: [AI]
+      summary: Analyze LiveKit call data with Vertex AI
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roomName:
+                  type: string
+                analysisType:
+                  type: string
+                  enum: [transcription, sentiment, summary]
+      responses:
+        200:
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+        500:
+          description: AI processing error
+  /ai/history/{conversationId}:
+    get:
+      tags: [AI]
+      summary: Get conversation history
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Conversation history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IMessage'
+        404:
+          description: Conversation not found
+    delete:
+      tags: [AI]
+      summary: Delete conversation history
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: History deleted successfully
+          content:
+            application/json:
+              schema:
+                type: boolean
+  /ai/message:
+    post:
+      tags: [AI]
+      summary: Send message to AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageDTO'
+      responses:
+        201:
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IMessage'
+        500:
+          description: AI processing error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
   /auth/login:
     post:
       tags: [Auth]
@@ -58,7 +154,6 @@ paths:
                   message:
                     type: string
                     enum: [username not found, password does not match]
-
   /auth/signup:
     post:
       tags: [Auth]
@@ -90,7 +185,6 @@ paths:
                     type: array
                     items:
                       type: string
-
   /auth/google:
     get:
       tags: [Auth]
@@ -108,7 +202,6 @@ paths:
               schema:
                 type: string
                 example: https://accounts.google.com/o/oauth2/auth?client_id=...
-
   /auth/google/callback:
     get:
       tags: [Auth]
@@ -141,7 +234,6 @@ paths:
                 properties:
                   message:
                     type: string
-
   /auth/check-status:
     post:
       tags: [Auth]
@@ -164,7 +256,6 @@ paths:
                 properties:
                   message:
                     type: string
-
   /auth/update-status:
     post:
       tags: [Auth]
@@ -197,7 +288,50 @@ paths:
           description: Unauthorized
         500:
           description: Server error
-
+  /calendar/auth-url:
+    get:
+      tags: [Google Calendar]
+      summary: Get Google Calendar OAuth URL
+      responses:
+        200:
+          description: Google OAuth URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    example: "https://accounts.google.com/o/oauth2/auth?client_id=..."
+  /calendar/callback:
+    get:
+      tags: [Google Calendar]
+      summary: Handle Google Calendar OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Successfully connected Google Calendar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        500:
+          description: Integration failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
   /companies:
     get:
       tags: [Companies]
@@ -211,7 +345,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Company'
-
   /companies/industry:
     get:
       tags: [Companies]
@@ -232,7 +365,6 @@ paths:
                   message:
                     type: string
                     example: "Endpoint not implemented"
-
   /companies/{companyId}/jobs:
     get:
       tags: [Companies]
@@ -262,73 +394,143 @@ paths:
                   message:
                     type: string
                     example: "Company not found"
-
-  /ai/history/{conversationId}:
+  /docs/list/{userId}:
     get:
-      tags: [AI]
-      summary: Get conversation history
+      tags: [Google Docs]
+      summary: List user's Google Docs
       parameters:
-        - name: conversationId
+        - name: userId
           in: path
           required: true
           schema:
             type: string
       responses:
         200:
-          description: Conversation history
+          description: List of documents
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/IMessage'
-        404:
-          description: Conversation not found
-
-    delete:
-      tags: [AI]
-      summary: Delete conversation history
-      parameters:
-        - name: conversationId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        200:
-          description: History deleted successfully
-          content:
-            application/json:
-              schema:
-                type: boolean
-
-  /ai/message:
-    post:
-      tags: [AI]
-      summary: Send message to AI
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MessageDTO'
-      responses:
-        201:
-          description: AI response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IMessage'
+                $ref: '#/components/schemas/DocumentList'
+        401:
+          description: Unauthorized
         500:
-          description: AI processing error
+          description: Server error
+  /docs/search:
+    get:
+      tags: [Google Docs]
+      summary: Search Google Docs
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentList'
+        401:
+          description: Unauthorized
+        500:
+          description: Server error
+  /docs/read:
+    get:
+      tags: [Google Docs]
+      summary: Read document content
+      parameters:
+        - name: fileId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Document content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentContent'
+        401:
+          description: Unauthorized
+        500:
+          description: Server error
+  # ========================
+  # Office 365 Excel Integration
+  # ========================  
+  /excel/auth-url:
+    get:
+      tags: [Office 365 Excel]
+      summary: Get Office 365 OAuth URL
+      responses:
+        200:
+          description: Microsoft OAuth URL
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  message:
+                  url:
                     type: string
+                    example: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=..."
 
+  /excel/callback:
+    get:
+      tags: [Office 365 Excel]
+      summary: Handle Office 365 OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Successfully connected Excel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /excel/sheets:
+    get:
+      tags: [Office 365 Excel]
+      summary: List Excel sheets
+      parameters:
+        - name: fileId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of sheets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    id:
+                      type: string 
   /gmail/auth-url:
     get:
       tags:
@@ -481,68 +683,636 @@ paths:
                       type: string
         '404':
           description: No emails found with the specified subject.
-
-  /slack/events:
-    post:
-      tags: [Slack]
-      summary: Handle Slack events
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                type:
-                  type: string
-                challenge:
-                  type: string
+  # ========================
+  # HubSpot CRM Integration
+  # ========================
+  /hubspot/auth-url:
+    get:
+      tags: [HubSpot CRM]
+      summary: Get HubSpot OAuth URL
       responses:
         200:
-          description: Event processed
+          description: HubSpot OAuth URL
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  url:
+                    type: string
 
-  /users/profile:
+  /hubspot/callback:
     get:
-      tags: [Users]
-      summary: Get user profile
-      security:
-        - cookieAuth: []
+      tags: [HubSpot CRM]
+      summary: Handle HubSpot OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         200:
-          description: User profile data
+          description: Successfully connected HubSpot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
 
-  /docs/list/{userId}:
+  /hubspot/deals:
     get:
-      tags: [Google Docs]
-      summary: List user's Google Docs
+      tags: [HubSpot CRM]
+      summary: Get HubSpot deals
+      responses:
+        200:
+          description: List of deals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    amount:
+                      type: number
+  /jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Get job by ID
       parameters:
-        - name: userId
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        404:
+          description: Job not found
+        500:
+          description: Server error
+  /jobs/update:
+    post:
+      tags: [Jobs]
+      summary: Update job listings (Admin)
+      responses:
+        201:
+          description: Job listings updated
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Updated job listings!"
+        500:
+          description: Failed to update jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  # ========================
+  # LiveKit Room Management
+  # ========================
+  /livekit/rooms:
+    post:
+      tags: [LiveKit]
+      summary: Create a new LiveKit room
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveKitRoomRequest'
+      responses:
+        201:
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveKitRoom'
+        401:
+          description: Unauthorized
+        500:
+          description: Failed to create room
+
+    get:
+      tags: [LiveKit]
+      summary: List active LiveKit rooms
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of active rooms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LiveKitRoom'
+        401:
+          description: Unauthorized
+
+  /livekit/rooms/{roomName}:
+    get:
+      tags: [LiveKit]
+      summary: Get details of a LiveKit room
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roomName
           in: path
           required: true
           schema:
             type: string
       responses:
         200:
-          description: List of documents
+          description: Room details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveKitRoom'
+        404:
+          description: Room not found
+    delete:
+      tags: [LiveKit]
+      summary: Delete a LiveKit room
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roomName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Room deleted
+        404:
+          description: Room not 
+  /livekit/token:
+    post:
+      tags: [LiveKit]
+      summary: Generate access token for LiveKit room
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveKitTokenRequest'
+      responses:
+        200:
+          description: Token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        401:
+          description: Unauthorized
+  # ========================
+  # Notion Integration
+  # ========================
+  /notion/auth-url:
+    get:
+      tags: [Notion]
+      summary: Get Notion OAuth URL
+      responses:
+        200:
+          description: Notion OAuth URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+
+  /notion/callback:
+    get:
+      tags: [Notion]
+      summary: Handle Notion OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Successfully connected Notion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /notion/pages:
+    get:
+      tags: [Notion]
+      summary: Get Notion pages
+      parameters:
+        - name: databaseId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of pages
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Document'
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    title:
+                      type: string
+  /prompts:
+    post:
+      tags: [Prompts]
+      summary: Create a new prompt
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptDto'
+      responses:
+        201:
+          description: Created prompt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        401:
+          description: Unauthorized
+    get:
+      tags: [Prompts]
+      summary: Get all prompts
+      responses:
+        200:
+          description: List of prompts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Prompt'
+  /prompts/{id}:
+    get:
+      tags: [Prompts]
+      summary: Get prompt by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Prompt details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        404:
+          description: Prompt not found
+    patch:
+      tags: [Prompts]
+      summary: Update a prompt
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePromptDto'
+      responses:
+        200:
+          description: Updated prompt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+    delete:
+      tags: [Prompts]
+      summary: Delete a prompt
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        204:
+          description: Prompt deleted
+        404:
+          description: Prompt not found
+  /prompts/prompt/initial:
+    get:
+      tags: [Prompts]
+      summary: Get default system prompt
+      responses:
+        200:
+          description: Default prompt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitialPrompt'
+        404:
+          description: Default prompt not found
 
-  # Additional paths continue here...
+    patch:
+      tags: [Prompts]
+      summary: Update default prompt
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                text:
+                  type: string
+              required: [id, text]
+      responses:
+        200:
+          description: Updated default prompt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitialPrompt'
+  /resources:
+    get:
+      tags: [Resources]
+      summary: Get career resources
+      parameters:
+        - name: title
+          in: query
+          schema:
+            type: string
+          description: Filter by resource title
+        - name: info
+          in: query
+          schema:
+            type: string
+          description: Search in resource information
+        - name: url
+          in: query
+          schema:
+            type: string
+          description: Filter by URL
+      responses:
+        200:
+          description: List of career resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Resource'
+        400:
+          description: Invalid query parameters
+        500:
+          description: Server error
+  /slack/events:
+    post:
+      tags: [Slack]
+      summary: Handle Slack event subscriptions
+      description: |
+        - Handles Slack Event API payloads including URL verification challenges.
+        - Stores events in database and emits them via WebSocket.
+      operationId: handleSlackEvents
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlackEventPayload'
+      responses:
+        '200':
+          description: Success (returns challenge response for URL verification)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SlackChallengeResponse'
+                  - type: object
+                    properties: {}
+        '500':
+          description: Internal server error
+  /slack/auth:
+    post:
+      tags: [Slack]
+      summary: Authenticate with Slack OAuth2
+      description: Exchange Slack OAuth2 code for access tokens
+      operationId: slackAuth
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Slack OAuth2 authorization code
+              required: [code]
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          description: Unauthorized (missing/invalid credentials)
+        '500':
+          description: Internal server error
+  /users/profile:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+        '404':
+          description: User not found
+  /users/applications:
+    get:
+      tags: [Users]
+      summary: Get all job applications for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of job applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Application'
+        '401':
+          description: Unauthorized
+  /users/applications/{jobId}:
+    get:
+      tags: [Users]
+      summary: Get specific job application by job ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Job application details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '403':
+          description: Forbidden (accessing another user's application)
+        '404':
+          description: Application not found
+  # ========================
+  # Zoom Integration
+  # ========================
+  /zoom/auth-url:
+    get:
+      tags: [Zoom]
+      summary: Get Zoom OAuth URL
+      responses:
+        200:
+          description: Zoom OAuth URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
 
+  /zoom/callback:
+    get:
+      tags: [Zoom]
+      summary: Handle Zoom OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Successfully connected Zoom
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /zoom/meetings:
+    post:
+      tags: [Zoom]
+      summary: Create Zoom meeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                topic:
+                  type: string
+                start_time:
+                  type: string
+                  format: date-time
+                duration:
+                  type: integer
+      responses:
+        201:
+          description: Created meeting
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  join_url:
+                    type: string
 components:
   securitySchemes:
     cookieAuth:
       type: apiKey
       in: cookie
       name: access_token
-
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     Company:
       type: object
@@ -567,26 +1337,29 @@ components:
       properties:
         id:
           type: integer
-          format: int64
         title:
           type: string
-        description:
+        hoursType:
           type: string
-        # Add other job properties as needed
+          enum: [fulltime, parttime]
+        wage:
+          type: number
+          nullable: true
+        wageType:
+          type: string
+          enum: [yearly, monthly, hourly]
+        locations:
+          type: array
+          items:
+            type: string
+        company:
+          $ref: '#/components/schemas/Company'
       required:
         - id
         - title
-    Document:
-      type: object
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        createdTime:
-          type: string
-          format: date-time
-
+        - hoursType
+        - wageType
+        - locations
     LoginDTO:
       type: object
       properties:
@@ -595,7 +1368,6 @@ components:
         password:
           type: string
       required: [username, password]
-
     SignupDTO:
       type: object
       properties:
@@ -649,7 +1421,6 @@ components:
         - wantNewGrad
         - wantFullTime
         - wantPreProf
-
     IMessage:
       type: object
       properties:
@@ -663,7 +1434,6 @@ components:
           format: int64
           description: Unix timestamp
       required: [role, content, generated]
-
     MessageDTO:
       type: object
       properties:
@@ -672,14 +1442,6 @@ components:
         content:
           type: string
       required: [conversationId, content]
-
-    CreatePromptDto:
-      type: object
-      properties:
-        text:
-          type: string
-        isDefault:
-          type: boolean
     IntegrationStatus:
       type: object
       properties:
@@ -711,6 +1473,438 @@ components:
               type: boolean
             isAuthenticated:
               type: boolean
+        # Add new integration statuses
+        office365_excel:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+        hubspot_crm:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+        notion:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+        zoom:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            isAuthenticated:
+              type: boolean
+    GoogleCalendarEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        summary:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        start:
+          type: object
+          properties:
+            date:
+              type: string
+            dateTime:
+              type: string
+            timeZone:
+              type: string
+        end:
+          type: object
+          properties:
+            date:
+              type: string
+            dateTime:
+              type: string
+            timeZone:
+              type: string
+        attendees:
+          type: array
+          items:
+            type: object
+            properties:
+              email:
+                type: string
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              fileUrl:
+                type: string
+    IAnalyzableEvent:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        date:
+          type: string
+          nullable: true
+        time:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        timeZone:
+          type: string
+          nullable: true
+        guests:
+          type: array
+          items:
+            type: string
+          nullable: true
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              link:
+                type: string
+          nullable: true
+    DocumentList:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    DocumentContent:
+      type: object
+      properties:
+        content:
+          type: string
+    Prompt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        scenario:
+          type: string
+        objective:
+          type: string
+        content:
+          type: string
+        examples:
+          type: string
+      required:
+        - name
+        - scenario
+        - objective
+        - content
+        - examples
+    InitialPrompt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+      required:
+        - text
+    CreatePromptDto:
+      type: object
+      properties:
+        name:
+          type: string
+        scenario:
+          type: string
+        objective:
+          type: string
+        content:
+          type: string
+        examples:
+          type: string
+      required:
+        - name
+        - scenario
+        - objective
+        - content
+        - examples
+    UpdatePromptDto:
+      type: object
+      properties:
+        name:
+          type: string
+        scenario:
+          type: string
+        objective:
+          type: string
+        content:
+          type: string
+        examples:
+          type: string
+    Resource:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        info:
+          type: string
+        url:
+          type: string
+      required:
+        - id
+        - title
+        - info
+        - url
+    SlackEventPayload:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [event_callback, url_verification]
+        challenge:
+          type: string
+        event:
+          type: object
+          properties:
+            user:
+              type: string
+              description: Slack user ID
+            text:
+              type: string
+              description: Message content
+            channel:
+              type: string
+              description: Slack channel ID
+            ts:
+              type: string
+              description: Event timestamp
+      required: [type]
+    SlackChallengeResponse:
+      type: object
+      properties:
+        challenge:
+          type: string
+      required: [challenge]
+    SlackAuthRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: OAuth2 authorization code
+      required: [code]
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        username:
+          type: string
+          example: "john_doe"
+        firstName:
+          type: string
+          example: "John"
+        lastName:
+          type: string
+          example: "Doe"
+        email:
+          type: string
+          example: "john@example.com"
+        phoneNumber:
+          type: string
+          nullable: true
+          example: "+1234567890"
+        profileLinkedIn:
+          type: string
+          nullable: true
+          example: "linkedin.com/in/johndoe"
+        addrLine1:
+          type: string
+          nullable: true
+          example: "123 Main St"
+        city:
+          type: string
+          nullable: true
+          example: "New York"
+        integrations:
+          type: object
+          properties:
+            slack:
+              type: object
+              properties:
+                enabled: 
+                  type: boolean
+                isAuthenticated: 
+                  type: boolean
+            google_calendar:
+              type: object
+              properties:
+                enabled: 
+                  type: boolean
+                isAuthenticated: 
+                  type: boolean
+            monday:
+              type: object
+              properties:
+                enabled: 
+                  type: boolean
+            hubspot_crm:
+              type: object
+              properties:
+                enabled: 
+                  type: boolean
+          example:
+            slack: { enabled: true, isAuthenticated: true }
+            google_calendar: { enabled: false, isAuthenticated: false }
+        userJobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Application'
+      required:
+        - id
+        - username
+        - firstName
+        - lastName
+        - email
+    Application:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 42
+        jobId:
+          type: integer
+          example: 789
+        status:
+          type: string
+          enum: [not-started, in-progress, submitted, withdrawn, no-response, rejected, accepted, declined]
+          example: "in-progress"
+        wantsResume:
+          type: boolean
+          example: true
+        submittedResume:
+          type: boolean
+          example: false
+        wantsCoverLetter:
+          type: boolean
+          example: true
+        submittedCoverLetter:
+          type: boolean
+          example: false
+        wantsTest:
+          type: boolean
+          example: false
+        submittedTest:
+          type: boolean
+          example: false
+        wantsInterview:
+          type: boolean
+          example: true
+        submittedInterview:
+          type: boolean
+          example: false
+        user:
+          $ref: '#/components/schemas/User'
+      required:
+        - id
+        - jobId
+        - status
+    WebSocketEvent:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: Number of unique events
+          example: 5
+        summary:
+          type: string
+          description: |
+            Formatted event details in markdown. Contains:
+            - User name
+            - Channel name
+            - Message text
+            - Timestamp
+          example: |
+            - **User**: John Doe
+              - **Channel**: general
+              - **Message**: "Hello team!"
+              - **Time**: 5/15/2024, 2:30:00 PM
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        message:
+          type: string
+        error:
+          type: string
+    LiveKitRoomRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        emptyTimeout:
+          type: integer
+          default: 300
+        maxParticipants:
+          type: integer
+          default: 50
+      required: [name]
+    LiveKitRoom:
+      type: object
+      properties:
+        name:
+          type: string
+        creationTime:
+          type: string
+          format: date-time
+        numParticipants:
+          type: integer
+        emptyTimeout:
+          type: integer
+    LiveKitTokenRequest:
+      type: object
+      properties:
+        roomName:
+          type: string
+        identity:
+          type: string
+        permissions:
+          type: object
+          properties:
+            canPublish:
+              type: boolean
+            canSubscribe:
+              type: boolean
+      required: [roomName, identity]
 tags:
   - name: App
     description: Core application endpoints
@@ -722,9 +1916,41 @@ tags:
     description: Company information and job listings
   - name: Gmail
     description: Gmail integration
+  - name: Google Calendar
+    description: Google Calendar integration and event management
+  - name: Jobs
+    description: Job listings and management
+  - name: Prompts
+    description: AI Prompt management and configuration
   - name: Slack
     description: Slack integration
+  - name: Resources
+    description: Career development resources and materials
+  - name: LiveKit
+    description: Real-time video/audio communication via LiveKit
   - name: Users
     description: User management
   - name: Google Docs
     description: Google Docs integration
+  - name: Office 365 Excel
+    description: Microsoft Excel integration
+  - name: HubSpot CRM
+    description: HubSpot CRM integration
+  - name: Notion
+    description: Notion workspace integration
+  - name: Zoom
+    description: Zoom meeting integration
+
+x-websocket:
+  endpoints:
+    /ws/slack-events:
+      description: WebSocket endpoint for real-time Slack event updates
+      subscriptions:
+        slack_events:
+          description: Initial event summary sent on connection
+          payload:
+            $ref: '#/components/schemas/WebSocketEvent'
+        slack_event:
+          description: Live updates when new Slack events occur
+          payload:
+            $ref: '#/components/schemas/WebSocketEvent'
