@@ -1,0 +1,1416 @@
+openapi: 3.0.0
+info:
+  title: NestJS API
+  version: 1.1.0
+  description: |
+    API specification for the NestJS application with detailed user and integration management.
+    API for job platform with AI and third-party integrations
+    ## WebSocket Support
+    - Connect via `ws://{host}/ws/slack-events` for real-time event updates
+    - Supported events: `slack_events` (initial state), `slack_event` (live updates)
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://chambiar-prod-backend-app-563127813488.us-central1.run.app
+    description: Development
+  - url: https://chambiar-app.chambiar.ai
+    description: Production
+tags:
+  - name: App
+    description: Core application health check.
+  - name: AI
+    description: AI and messaging operations
+  - name: Auth
+    description: User authentication and authorization flows
+  - name: Companies
+    description: Company and industry data
+  - name: Gmail
+    description: Operations related to Gmail
+  - name: Google Calendar
+    description: Operations related to Google Calendar
+  - name: Google Docs
+    description: Operations related to Google Docs
+  - name: Hubspot
+    description: Hubspot CRM integration
+  - name: Integrations
+    description: Managing third-party service integrations
+  - name: Jobs
+    description: Job listing operations
+  - name: LiveKit
+    description: Real-time communication services
+  - name: Notion
+    description: Notion integration
+  - name: Office 365 Excel
+    description: Microsoft Office 365 Excel integration
+  - name: Prompts
+    description: Managing AI prompts
+  - name: Resources
+    description: Access to resources
+  - name: Slack
+    description: Slack integration
+  - name: Users
+    description: User-specific data and applications
+  - name: Zoom
+    description: Zoom integration
+
+paths:
+  /:
+    get:
+      tags: [App]
+      summary: Health Check
+      description: Returns a simple message to indicate that the API is running.
+      responses:
+        '200':
+          description: API is running.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Chambiar API is running"
+  /ai/history/{conversationId}:
+    get:
+      tags: [AI]
+      summary: Get conversation history
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of messages in the conversation.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IMessage'
+    delete:
+      tags: [AI]
+      summary: Delete conversation history
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: History deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: boolean
+
+  /ai/message:
+    post:
+      tags: [AI]
+      summary: Send a message to the AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageDTO'
+      responses:
+        '201':
+          description: The AI's response message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IMessage'
+
+  /ai/documents/important:
+    get:
+      tags: [AI]
+      summary: Get important documents
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+        - name: minScore
+          in: query
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: A list of important documents.
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDTO'
+      responses:
+        '200':
+          description: Authentication successful.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                  expires_in:
+                    type: integer
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: User signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupDTO'
+      responses:
+        '201':
+          description: User created successfully.
+
+  /auth/google-docs:
+    get:
+      tags: [Auth, Google Docs]
+      summary: Initiate Google Docs OAuth login
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Google OAuth login page.
+
+  /auth/google-calendar:
+    get:
+      tags: [Auth, Google Calendar]
+      summary: Initiate Google Calendar OAuth login
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Google OAuth login page.
+
+  /auth/google-gmail:
+    get:
+      tags: [Auth, Gmail]
+      summary: Initiate Google Gmail OAuth login
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Google OAuth login page.
+
+  /auth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Google OAuth callback
+      responses:
+        '302':
+          description: Redirect to the appropriate frontend URL.
+  
+  /auth/zoom:
+    get:
+      tags: [Auth, Zoom]
+      summary: Initiate Zoom OAuth login
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect
+          in: query
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Zoom OAuth login page.
+
+  /auth/zoom/callback:
+    get:
+      tags: [Auth, Zoom]
+      summary: Zoom OAuth callback
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the appropriate frontend URL after token exchange.
+
+  /calendar/events:
+    get:
+      tags: [Google Calendar]
+      summary: Get all calendar events
+      responses:
+        '200':
+          description: A list of calendar events.
+    post:
+      tags: [Google Calendar]
+      summary: Create a new calendar event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IAnalyzableEvent'
+      responses:
+        '201':
+          description: The created calendar event.
+
+  /calendar/events/search:
+    get:
+      tags: [Google Calendar]
+      summary: Search calendar events
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of matching calendar events.
+
+  /calendar/events/{eventId}:
+    put:
+      tags: [Google Calendar]
+      summary: Update a calendar event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IAnalyzableEvent'
+      responses:
+        '200':
+          description: The updated calendar event.
+    delete:
+      tags: [Google Calendar]
+      summary: Delete a calendar event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event deleted successfully.
+
+  /companies:
+    get:
+      tags: [Companies]
+      summary: Get all companies
+      responses:
+        '200':
+          description: A list of all companies.
+  
+  /companies/industry:
+    get:
+      tags: [Companies]
+      summary: Get companies by industry
+      parameters:
+        - name: industry
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of companies in the specified industry.
+          
+  /companies/{companyId}/jobs:
+    get:
+      tags: [Companies]
+      summary: Get all jobs for a specific company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: A list of jobs for the company.
+          
+  /docs/list/{userId}:
+    get:
+      tags: [Google Docs]
+      summary: Fetch all Google Docs for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of Google Docs.
+        '401':
+          description: User ID not found or token invalid.
+
+  /docs/search:
+    get:
+      tags: [Google Docs]
+      summary: Search for Google Docs
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: An array of matching documents.
+        '401':
+          description: User ID not found or token invalid.
+
+  /docs/read:
+    get:
+      tags: [Google Docs]
+      summary: Read the content of a Google Doc
+      parameters:
+        - name: fileId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The content of the Google Doc.
+        '401':
+          description: User ID not found or token invalid.
+
+  /gmail/search:
+    get:
+      tags: [Gmail]
+      summary: Search for emails by subject
+      parameters:
+        - name: subject
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results.
+
+  /hubspot/auth-url:
+    get:
+      tags: [Hubspot]
+      summary: Redirect to HubSpot OAuth2 authorization URL
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          description: User ID to track OAuth callback
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirects to HubSpot OAuth2 login.
+
+  /hubspot/callback:
+    get:
+      tags: [Hubspot]
+      summary: Handle HubSpot OAuth2 callback and store tokens, then redirect to frontend
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: Authorization code provided by HubSpot
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: Encoded userId originally passed as state param
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirects to frontend with success or error flag.
+
+  /hubspot/contacts:
+    get:
+      tags: [Hubspot]
+      summary: Get HubSpot contacts for authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Returns a list of HubSpot contacts.
+        '401':
+          description: Unauthorized.
+
+  /hubspot/status:
+    get:
+      tags: [Hubspot]
+      summary: Check if HubSpot is integrated for user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Returns true or false based on integration status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  integrated:
+                    type: boolean
+
+  /integrations/google/connection:
+    post:
+      tags: [Integrations]
+      summary: Create or Update a Google Connection
+      description: Creates a new Google connection record or updates an existing one based on the user ID and connection purpose. This is typically called after a successful OAuth callback.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserGoogleConnectionDto'
+      responses:
+        '201':
+          description: Connection created or updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGoogleConnection'
+        '500':
+          description: Failed to create or update the connection.
+
+  /integrations/check-status:
+    get:
+      tags: [Integrations]
+      summary: Check a specific Google integration status
+      description: Checks if a Google integration for a specific purpose is active and has a valid token.
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userUsername
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: purpose
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The purpose of the connection (e.g., 'gmail', 'google_docs').
+      responses:
+        '200':
+          description: The integration status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  integrated:
+                    type: boolean
+                  message:
+                    type: string
+                  scopes:
+                    type: array
+                    items:
+                      type: string
+
+  /integrations/connection/{id}:
+    patch:
+      tags: [Integrations]
+      summary: Update a Google Connection by ID
+      description: Partially updates a Google connection record by its unique ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserGoogleConnectionDto'
+      responses:
+        '200':
+          description: Connection updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGoogleConnection'
+        '404':
+          description: Connection not found.
+          
+  /integrations/google/connection/user:
+    get:
+      tags: [Integrations]
+      summary: Get Google Connections for a User
+      description: Retrieves all Google connections for a user, or a specific one if a 'purpose' is provided.
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userUsername
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: purpose
+          in: query
+          schema:
+            type: string
+          description: Optional. The purpose of the connection to filter by (e.g., 'gmail').
+      responses:
+        '200':
+          description: The user connection details.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserGoogleConnection'
+    delete:
+      tags: [Integrations]
+      summary: Remove a Google Connection for a User
+      description: Removes a specific Google connection for a user based on its purpose.
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userUsername
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: purpose
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Connection removed successfully.
+        '404':
+          description: Connection not found.
+
+  /integrations/google/connection/{id}:
+    get:
+      tags: [Integrations]
+      summary: Get Google Connection by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The connection details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGoogleConnection'
+        '404':
+          description: Connection not found.
+    delete:
+      tags: [Integrations]
+      summary: Remove Google Connection by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Connection removed successfully.
+        '404':
+          description: Connection not found.
+
+  /jobs/update:
+    post:
+      tags: [Jobs]
+      summary: Trigger an update of the jobs list
+      responses:
+        '200':
+          description: Confirmation message that job update process was started.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Updated job listings!
+
+  /jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Get a job by its ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: A single job object.
+        '404':
+          description: Job not found.
+
+  /livekit/token:
+    get:
+      tags: [LiveKit]
+      summary: Get a LiveKit token
+      parameters:
+        - name: roomName
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: participantIdentity
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: participantName
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The LiveKit token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    
+  /notion/auth:
+    get:
+      tags: [Notion]
+      summary: Initiate Notion OAuth flow
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Notion authorization URL.
+  
+  /notion/callback:
+    get:
+      tags: [Notion]
+      summary: Notion OAuth callback
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirects to a frontend page upon success or failure.
+          
+  /notion/exchange-code:
+    post:
+      tags: [Notion]
+      summary: Exchange authorization code for access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExchangeCodeDto'
+      responses:
+        '200':
+          description: Token exchange result.
+          
+  /office365-excel/initiate-microsoft-oauth:
+    get:
+      tags: [Office 365 Excel]
+      summary: Initiate Microsoft OAuth for Excel
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Microsoft authorization URL.
+
+  /office365-excel/list/{userId}:
+    get:
+      tags: [Office 365 Excel]
+      summary: List Excel files
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of Excel files.
+
+  /office365-excel/names/{userId}:
+    get:
+      tags: [Office 365 Excel]
+      summary: List Excel file names
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of Excel file names.
+
+  /office365-excel/search:
+    get:
+      tags: [Office 365 Excel]
+      summary: Search Excel files
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results.
+
+  /office365-excel/search-by-name:
+    get:
+      tags: [Office 365 Excel]
+      summary: Search Excel files by name
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results.
+
+  /office365-excel/metadata:
+    get:
+      tags: [Office 365 Excel]
+      summary: Get Excel file metadata
+      parameters:
+        - name: fileId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The file metadata.
+
+  /office365-excel/worksheet-data:
+    get:
+      tags: [Office 365 Excel]
+      summary: Get Excel worksheet data
+      parameters:
+        - name: fileId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: worksheetNameOrId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The worksheet data.
+          
+  /prompts/:
+    post:
+      tags: [Prompts]
+      summary: Create a new prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptDto'
+      responses:
+        '201':
+          description: The created prompt.
+    get:
+      tags: [Prompts]
+      summary: Get all prompts
+      responses:
+        '200':
+          description: A list of all prompts.
+  
+  /prompts/{id}:
+    get:
+      tags: [Prompts]
+      summary: Get a prompt by its ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The requested prompt.
+        '404':
+          description: Prompt not found.
+    patch:
+      tags: [Prompts]
+      summary: Update a prompt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePromptDto'
+      responses:
+        '200':
+          description: The updated prompt.
+    delete:
+      tags: [Prompts]
+      summary: Delete a prompt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Confirmation of deletion.
+          
+  /prompts/prompt/initial:
+    get:
+      tags: [Prompts]
+      summary: Get the default prompt
+      responses:
+        '200':
+          description: The default prompt.
+        '404':
+          description: Default prompt not found.
+
+  /prompts/prompt/update:
+    patch:
+      tags: [Prompts]
+      summary: Update the initial/default prompt setting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                text:
+                  type: boolean
+      responses:
+        '200':
+          description: The updated prompt setting.
+          
+  /resources:
+    get:
+      tags: [Resources]
+      summary: Get a list of resources
+      parameters:
+        - in: query
+          name: GetResourcesDto
+          schema:
+            $ref: '#/components/schemas/GetResourcesDto'
+      responses:
+        '200':
+          description: A list of resources matching the query.
+
+  /slack/auth-url:
+    get:
+      tags: [Slack]
+      summary: Get Slack authentication URL
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to Slack authorization URL.
+          
+  /slack/events:
+    post:
+      tags: [Slack]
+      summary: Handle incoming events from Slack
+      requestBody:
+        description: Event payload from Slack. Can be a URL verification challenge or a regular event.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                challenge:
+                  type: string
+                event:
+                  type: object
+      responses:
+        '200':
+          description: Responds to URL verification challenge or acknowledges the event.
+          
+  /slack/auth:
+    post:
+      tags: [Slack]
+      summary: Handle Slack OAuth callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+      responses:
+        '200':
+          description: Authentication successful.
+          
+  /users/profile:
+    get:
+      tags: [Users]
+      summary: Get the profile of the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found.
+          
+  /users/applications:
+    get:
+      tags: [Users]
+      summary: Get all job applications for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: A list of user's job applications.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Application'
+
+  /users/applications/{jobId}:
+    get:
+      tags: [Users]
+      summary: Get a specific job application by job ID
+      description: Retrieves the job application for the authenticated user matching the specified job ID. If an application does not exist, a new one is created with a 'not-started' status.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: The job application, either existing or newly created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '403':
+          description: User does not have permission to access this application.
+        '404':
+          description: Application not found (and could not be created).
+
+components:
+  schemas:
+    IMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        sender:
+          type: string
+    MessageDTO:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        message:
+          type: string
+    LoginDTO:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    SignupDTO:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        email:
+          type: string
+    IAnalyzableEvent:
+      type: object
+      properties:
+        summary:
+          type: string
+        description:
+          type: string
+        start:
+          type: object
+          properties:
+            dateTime:
+              type: string
+              format: date-time
+            timeZone:
+              type: string
+        end:
+          type: object
+          properties:
+            dateTime:
+              type: string
+              format: date-time
+            timeZone:
+              type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+          nullable: true
+        email:
+          type: string
+        profileLinkedIn:
+          type: string
+          nullable: true
+        profileGoogle:
+          type: string
+          nullable: true
+        addrLine1:
+          type: string
+          nullable: true
+        addrLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        integrations:
+          $ref: '#/components/schemas/AllUserIntegrations'
+        userJobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Application'
+        googleConnections:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserGoogleConnection'
+    Application:
+      type: object
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        wantsPersonalInfo:
+          type: boolean
+        wantsResume:
+          type: boolean
+        wantsCoverLetter:
+          type: boolean
+        wantsTest:
+          type: boolean
+        wantsInterview:
+          type: boolean
+        submittedPersonalInfo:
+          type: boolean
+        submittedResume:
+          type: boolean
+        submittedCoverLetter:
+          type: boolean
+        submittedTest:
+          type: boolean
+        submittedInterview:
+          type: boolean
+    ApplicationStatus:
+      type: string
+      enum:
+        - not-started
+        - in-progress
+        - submitted
+        - withdrawn
+        - no-response
+        - rejected
+        - accepted
+        - declined
+    AllUserIntegrations:
+      type: object
+      properties:
+        google_documents:
+          $ref: '#/components/schemas/IntegrationDetail'
+        google_calendar:
+          $ref: '#/components/schemas/IntegrationDetail'
+        gmail:
+          $ref: '#/components/schemas/IntegrationDetail'
+        monday:
+          $ref: '#/components/schemas/IntegrationDetail'
+        office_365_excel:
+          $ref: '#/components/schemas/IntegrationDetail'
+        slack:
+          $ref: '#/components/schemas/IntegrationDetail'
+        hubspot_crm:
+          $ref: '#/components/schemas/IntegrationDetail'
+        notion:
+          $ref: '#/components/schemas/IntegrationDetail'
+        zoom:
+          $ref: '#/components/schemas/IntegrationDetail'
+    IntegrationDetail:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        isAuthenticated:
+          type: boolean
+        user:
+          type: object
+          additionalProperties: true
+    UserGoogleConnection:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+          format: uuid
+        userUsername:
+          type: string
+        googleUserId:
+          type: string
+        connectionPurpose:
+          type: string
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+          nullable: true
+        tokenExpiryDate:
+          type: string
+          format: date-time
+          nullable: true
+        grantedScopes:
+          type: string
+          nullable: true
+        lastValidatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateUserGoogleConnectionDto:
+      type: object
+      required:
+        - userId
+        - userUsername
+        - googleUserId
+        - accessToken
+      properties:
+        userId:
+          type: string
+          format: uuid
+        userUsername:
+          type: string
+        googleUserId:
+          type: string
+        connectionPurpose:
+          type: string
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenExpiryDate:
+          type: string
+          format: date-time
+        grantedScopes:
+          type: string
+        lastValidatedAt:
+          type: string
+          format: date-time
+    UpdateUserGoogleConnectionDto:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenExpiryDate:
+          type: string
+          format: date-time
+        grantedScopes:
+          type: string
+        lastValidatedAt:
+          type: string
+          format: date-time
+    CreatePromptDto:
+      type: object
+      properties:
+        name:
+          type: string
+        text:
+          type: string
+        isDefault:
+          type: boolean
+    UpdatePromptDto:
+      type: object
+      properties:
+        name:
+          type: string
+        text:
+          type: string
+        isDefault:
+          type: boolean
+    ExchangeCodeDto:
+      type: object
+      properties:
+        code:
+          type: string
+        userId:
+          type: string
+    GetResourcesDto:
+      type: object
+      properties:
+        category:
+          type: string
+        tag:
+          type: string
+        sortBy:
+          type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
